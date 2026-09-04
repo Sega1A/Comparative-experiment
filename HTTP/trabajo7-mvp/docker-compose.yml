@@ -1,0 +1,45 @@
+services:
+  # ---------- MQTT ----------
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: t7-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    networks: [t7net]
+
+  # Servicio que hace de "eco": escucha bench/req y responde en bench/resp.
+  # Sirve para poder medir un round-trip justo, comparable con HTTP y CoAP.
+  mqtt-echo:
+    build: ./servers
+    container_name: t7-mqtt-echo
+    command: python mqtt_echo.py
+    environment:
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+    depends_on: [mosquitto]
+    restart: unless-stopped
+    networks: [t7net]
+
+  # ---------- HTTP ----------
+  http-server:
+    build: ./servers
+    container_name: t7-http
+    command: uvicorn http_server:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    networks: [t7net]
+
+  # ---------- CoAP ----------
+  coap-server:
+    build: ./servers
+    container_name: t7-coap
+    command: python coap_server.py
+    ports:
+      - "5683:5683/udp"
+    networks: [t7net]
+
+networks:
+  t7net:
+    driver: bridge
