@@ -1,0 +1,44 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model alertas_coap {
+  id           Int       @id @default(autoincrement())
+  recibido_en  DateTime  @default(now()) @db.Timestamptz(6)
+  enviado_en   DateTime? @db.Timestamptz(6)
+  payload      Json
+  tamano_bytes Int
+  perfil_red   String?
+  tipo_mensaje String    @db.VarChar(3)
+  message_id   Int
+}
+
+model alertas_http {
+  id           Int       @id @default(autoincrement())
+  recibido_en  DateTime  @default(now()) @db.Timestamptz(6)
+  enviado_en   DateTime? @db.Timestamptz(6)
+  payload      Json
+  tamano_bytes Int
+  perfil_red   String?
+  ip_origen    String    @db.VarChar(45)
+  content_type String?   @db.VarChar(100)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model alertas_mqtt {
+  id           Int       @id @default(autoincrement())
+  recibido_en  DateTime  @default(now()) @db.Timestamptz(6)
+  enviado_en   DateTime? @db.Timestamptz(6)
+  payload      Json
+  tamano_bytes Int
+  perfil_red   String?
+  topic        String    @db.VarChar(255)
+  qos          Int       @db.SmallInt
+}
