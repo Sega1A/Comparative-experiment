@@ -1,0 +1,78 @@
+# Simulacion: 1 dispositivo (ESP32 emulado) -> 3 servidores (HTTP, MQTT, CoAP)
+# Uso:
+#   docker compose run --rm dispositivo     (ejecuta el experimento)
+#   docker compose run --rm analizar        (tablas, CSV y grafico en ./resultados)
+#   docker compose down                     (apaga todo; agrega -v para borrar los datos)
+
+x-python: &python
+  build: .
+  image: simulacion-caidas
+  volumes:
+    - datos:/datos
+
+services:
+  # ---------- Servidor A: HTTP (Flask, TCP 5000) ----------
+  servidor-http:
+    <<: *python
+    command: python servidor_http.py
+    restart: on-failure
+    cap_add: [NET_ADMIN]
+    environment:
+      NOMBRE: http
+
+  # ---------- Servidor B: MQTT (broker Mosquitto, TCP 1883) ----------
+  broker:
+    image: eclipse-mosquitto:2
+    command: mosquitto -c /mosquitto-no-auth.conf
+    restart: on-failure
+
+  # Suscriptor del "centro de auxilio". Comparte la red del broker, por eso
+  # habla con el por localhost (sin degradacion) y aplica netem en su eth0.
+  receptor-mqtt:
+    <<: *python
+    command: python receptor_mqtt.py
+    restart: on-failure
+    network_mode: "service:broker"
+    cap_add: [NET_ADMIN]
+    depends_on: [broker]
+    environment:
+      NOMBRE: mqtt
+
+  # ---------- Servidor C: CoAP (aiocoap, UDP 5683) ----------
+  servidor-coap:
+    <<: *python
+    command: python servidor_coap.py
+    restart: on-failure
+    cap_add: [NET_ADMIN]
+    environment:
+      NOMBRE: coap
+
+  # ---------- Dispositivo: ESP32 emulado ----------
+  dispositivo:
+    <<: *python
+    command: python dispositivo.py
+    cap_add: [NET_ADMIN]
+    depends_on: [servidor-http, receptor-mqtt, servidor-coap]
+    volumes:
+      - datos:/datos
+      - ./escenarios.json:/config/escenarios.json:ro
+    environment:
+      N_ALERTAS: ${N_ALERTAS:-30}        # alertas por protocolo y por escenario
+      TIEMPO_MAX: ${TIEMPO_MAX:-30}      # segundos antes de dar la alerta por perdida
+      PAUSA: ${PAUSA:-0.2}               # segundos entre alertas
+      CONEXION: ${CONEXION:-nueva}       # nueva | persistente (HTTP y MQTT)
+      MQTT_QOS: ${MQTT_QOS:-1}           # 0, 1 o 2
+      COAP_TIPO: ${COAP_TIPO:-CON}       # CON | NON
+    profiles: [manual]
+
+  # ---------- Analisis de resultados ----------
+  analizar:
+    <<: *python
+    command: python analizar.py
+    volumes:
+      - datos:/datos
+      - ./resultados:/salida
+    profiles: [manual]
+
+volumes:
+  datos:

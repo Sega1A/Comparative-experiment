@@ -1,0 +1,6 @@
+{
+  "ideal":        "",
+  "rural_leve":   "delay 100ms 20ms loss 5%",
+  "rural_media":  "delay 300ms 50ms loss 15%",
+  "rural_severa": "delay 600ms 100ms loss 30%"
+}
