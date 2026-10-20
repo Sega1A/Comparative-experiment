@@ -123,6 +123,33 @@ with get_session() as sesion:
 
 `get_session()` hace commit al salir del bloque y rollback si hay un error.
 
+### Exportar resultados a CSV
+
+Para comparar los protocolos sin consultar la base a mano, las alertas guardadas se exportan a archivos `.csv`, que se abren en Excel, LibreOffice o pandas. Usa la misma `DATABASE_URL` del `.env`.
+
+```bash
+python -m common.db.export
+```
+
+Crea una carpeta `results/export_<fecha y hora UTC>/` con:
+
+| Archivo | Contenido |
+|---|---|
+| `alerts_http.csv`, `alerts_mqtt.csv`, `alerts_coap.csv` | Todas las columnas de cada tabla |
+| `alerts_all.csv` | Los tres protocolos juntos, solo con las columnas comunes, para compararlos |
+
+Cada fila agrega dos columnas calculadas: `protocol` y `latency_ms`, que es `recibido_en` menos `enviado_en` en milisegundos. Queda vacía si la alerta no tiene `enviado_en`. Las fechas se exportan en UTC y el `payload` como texto JSON.
+
+Opciones:
+
+| Opción | Uso |
+|---|---|
+| `--protocol http` | Solo un protocolo (`http`, `mqtt`, `coap` o `all`, por defecto `all`) |
+| `--profile ideal` | Solo las alertas con ese `perfil_red`, para comparar un mismo escenario de red |
+| `--output results/prueba1` | Carpeta de salida en lugar de la carpeta con fecha |
+
+Ejemplo: `python -m common.db.export --profile perdida_10 --output results/perdida_10`.
+
 ## Gestión del proyecto
 
 Scrum con sprints de una semana. El backlog y los sprints están en GitHub Projects.
