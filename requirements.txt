@@ -1,2 +1,4 @@
 sqlalchemy==2.1.4
 psycopg[binary]==3.3.6
+pydantic==2.14.1
+pydantic-settings==2.16.0
