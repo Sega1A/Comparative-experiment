@@ -1,5 +1,4 @@
 import pytest
-
 from app import create_app
 
 VALID_ALERT = {"device_id": "esp32-01", "sequence": 1, "timestamp": 1760000000000}
@@ -38,7 +37,9 @@ def test_unexpected_values_return_400(client, body):
 
 
 def test_malformed_json_returns_400(client):
-    response = client.post("/http/alert", data="{not json", content_type="application/json")
+    response = client.post(
+        "/http/alert", data="{not json", content_type="application/json"
+    )
     assert response.status_code == 400
     assert response.get_json() is False
 
