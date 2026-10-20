@@ -5,7 +5,6 @@ Recibe alertas por CoAP sobre UDP, responde con ACK a los mensajes confirmables 
 | Archivo       | Para qué sirve                                                  |
 | ------------- | --------------------------------------------------------------- |
 | `app.py`      | Servidor (aiocoap). Recurso `POST /alert` en el puerto UDP 5683 |
-| `alert.py`    | Validación del cuerpo de la alerta (`AlertDTO`)                 |
 | `smoke.py`    | Script de prueba manual contra un servidor en ejecución         |
 | `test_app.py` | Tests automáticos con pytest (no necesitan base de datos)       |
 | `Dockerfile`  | Imagen del servicio, se construye desde la raíz del repo        |
@@ -13,7 +12,7 @@ Recibe alertas por CoAP sobre UDP, responde con ACK a los mensajes confirmables 
 ## Cómo funciona
 
 - **Ruta:** `POST coap://HOST:5683/alert`
-- **Cuerpo (JSON):** los tres campos son obligatorios y no se aceptan otros.
+- **Cuerpo (JSON):** `device_id`, `sequence` y `timestamp` son obligatorios; hay campos opcionales adicionales (ver `common/alert.py`) y no se aceptan otros.
 
   ```json
   { "device_id": "esp32-01", "sequence": 1, "timestamp": 1760000000000 }

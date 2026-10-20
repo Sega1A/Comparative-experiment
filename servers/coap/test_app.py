@@ -4,7 +4,6 @@ import aiocoap
 import pytest
 import pytest_asyncio
 from aiocoap import Code, Message, Reliable, Unreliable
-
 from app import create_site
 
 VALID_ALERT = {"device_id": "esp32-01", "sequence": 1, "timestamp": 1760000000000}
@@ -20,7 +19,9 @@ def fake_save(alert, request):
 @pytest_asyncio.fixture
 async def client():
     saved.clear()
-    server = await aiocoap.Context.create_server_context(create_site(fake_save), bind=("127.0.0.1", PORT))
+    server = await aiocoap.Context.create_server_context(
+        create_site(fake_save), bind=("127.0.0.1", PORT)
+    )
     client = await aiocoap.Context.create_client_context()
     yield client
     await client.shutdown()
@@ -29,7 +30,12 @@ async def client():
 
 async def post(client, payload, tuning=Reliable, path="alert"):
     body = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
-    request = Message(code=Code.POST, transport_tuning=tuning, payload=body, uri=f"coap://127.0.0.1:{PORT}/{path}")
+    request = Message(
+        code=Code.POST,
+        transport_tuning=tuning,
+        payload=body,
+        uri=f"coap://127.0.0.1:{PORT}/{path}",
+    )
     return await client.request(request).response
 
 

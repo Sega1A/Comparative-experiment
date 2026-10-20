@@ -1,14 +1,12 @@
 import asyncio
 import json
 import logging
-from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import aiocoap
-import aiocoap.resource as resource
-from aiocoap import CON, Code, ContentFormat, Message
+from aiocoap import CON, Code, ContentFormat, Message, resource
 
-from alert import AlertDTO, InvalidAlertError
+from common.alert import AlertDTO, InvalidAlertError
 from common.db import AlertaCoAP, get_session
 from common.db.init_db import init_db
 
@@ -21,9 +19,9 @@ def save_alert(alert: AlertDTO, request: Message) -> None:
     with get_session() as session:
         session.add(
             AlertaCoAP(
-                payload=asdict(alert),
+                payload=alert.to_payload(),
                 tamano_bytes=len(request.payload),
-                enviado_en=datetime.fromtimestamp(alert.timestamp / 1000, tz=timezone.utc),
+                enviado_en=datetime.fromtimestamp(alert.timestamp / 1000, tz=UTC),
                 tipo_mensaje="CON" if request.mtype == CON else "NON",
                 message_id=request.mid,
             )
@@ -46,7 +44,9 @@ class AlertResource(resource.Resource):
             logger.exception("Unexpected error while processing alert")
             return _reply(Code.INTERNAL_SERVER_ERROR, False)
 
-        logger.info("Alert received: %s (type=%s, mid=%s)", alert, request.mtype, request.mid)
+        logger.info(
+            "Alert received: %s (type=%s, mid=%s)", alert, request.mtype, request.mid
+        )
         return _reply(Code.CHANGED, True)
 
 
