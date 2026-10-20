@@ -6,7 +6,7 @@ Uso, desde la raíz del repositorio:
 """
 
 import argparse
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import inspect, select
 
@@ -24,16 +24,33 @@ def init_db() -> list:
 
 def prueba_insertar_y_leer() -> None:
     """Inserta una fila de prueba en cada tabla, la lee y luego la borra."""
-    ahora = datetime.now(timezone.utc)
+    ahora = datetime.now(UTC)
     payload = {"dispositivo": "prueba", "evento": "caida", "aceleracion_g": 2.7}
     filas = [
-        AlertaHTTP(payload=payload, tamano_bytes=64, enviado_en=ahora,
-                   perfil_red="ideal", ip_origen="127.0.0.1",
-                   content_type="application/json"),
-        AlertaMQTT(payload=payload, tamano_bytes=64, enviado_en=ahora,
-                   perfil_red="ideal", topic="alertas/caidas", qos=1),
-        AlertaCoAP(payload=payload, tamano_bytes=64, enviado_en=ahora,
-                   perfil_red="ideal", tipo_mensaje="CON", message_id=1234),
+        AlertaHTTP(
+            payload=payload,
+            tamano_bytes=64,
+            enviado_en=ahora,
+            perfil_red="ideal",
+            ip_origen="127.0.0.1",
+            content_type="application/json",
+        ),
+        AlertaMQTT(
+            payload=payload,
+            tamano_bytes=64,
+            enviado_en=ahora,
+            perfil_red="ideal",
+            topic="alertas/caidas",
+            qos=1,
+        ),
+        AlertaCoAP(
+            payload=payload,
+            tamano_bytes=64,
+            enviado_en=ahora,
+            perfil_red="ideal",
+            tipo_mensaje="CON",
+            message_id=1234,
+        ),
     ]
     with get_session() as sesion:
         sesion.add_all(filas)
@@ -41,16 +58,21 @@ def prueba_insertar_y_leer() -> None:
         for fila in filas:
             modelo = type(fila)
             leida = sesion.scalars(select(modelo).where(modelo.id == fila.id)).one()
-            print(f"  OK {modelo.__tablename__}: id={leida.id} "
-                  f"recibido_en={leida.recibido_en.isoformat()} payload={leida.payload}")
+            print(
+                f"  OK {modelo.__tablename__}: id={leida.id} "
+                f"recibido_en={leida.recibido_en.isoformat()} payload={leida.payload}"
+            )
         for fila in filas:
             sesion.delete(fila)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Crea las tablas de alertas.")
-    parser.add_argument("--prueba", action="store_true",
-                        help="inserta, lee y borra una fila de prueba por tabla")
+    parser.add_argument(
+        "--prueba",
+        action="store_true",
+        help="inserta, lee y borra una fila de prueba por tabla",
+    )
     args = parser.parse_args()
 
     tablas = init_db()
