@@ -5,10 +5,10 @@ se busca en el archivo .env de la raíz del repositorio (ver .env.example).
 """
 
 import os
+from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterator, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from sqlalchemy import Engine, create_engine
@@ -44,19 +44,22 @@ def _normalizar_url(url: str) -> str:
     """
     for prefijo in ("postgresql://", "postgres://"):
         if url.startswith(prefijo):
-            url = "postgresql+psycopg://" + url[len(prefijo):]
+            url = "postgresql+psycopg://" + url[len(prefijo) :]
             break
     partes = urlsplit(url)
     if partes.query:
-        params = [(k, v) for k, v in parse_qsl(partes.query, keep_blank_values=True)
-                  if k.lower() not in _PARAMS_SOLO_PRISMA]
+        params = [
+            (k, v)
+            for k, v in parse_qsl(partes.query, keep_blank_values=True)
+            if k.lower() not in _PARAMS_SOLO_PRISMA
+        ]
         url = urlunsplit(partes._replace(query=urlencode(params)))
     return url
 
 
 def get_database_url() -> str:
     """Devuelve DATABASE_URL (entorno primero, luego .env)."""
-    url: Optional[str] = os.environ.get("DATABASE_URL") or _leer_env(ARCHIVO_ENV).get(
+    url: str | None = os.environ.get("DATABASE_URL") or _leer_env(ARCHIVO_ENV).get(
         "DATABASE_URL"
     )
     if not url:

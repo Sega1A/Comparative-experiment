@@ -30,7 +30,9 @@ class AlertDTO:
 
         for name, expected_type in expected.items():
             if not _matches_type(payload[name], expected_type):
-                raise InvalidAlertError(f"field '{name}' must be of type {expected_type.__name__}")
+                raise InvalidAlertError(
+                    f"field '{name}' must be of type {expected_type.__name__}"
+                )
 
         return cls(**payload)
 
