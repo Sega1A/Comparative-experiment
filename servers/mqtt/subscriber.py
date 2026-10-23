@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import time
+
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 
@@ -14,9 +15,15 @@ TOPIC = "alertas/caidas"
 
 def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
-        print(f"[MQTT] Conectado exitosamente al Broker en {BROKER_HOST}:{BROKER_PORT}", flush=True)
+        print(
+            f"[MQTT] Conectado exitosamente al Broker en {BROKER_HOST}:{BROKER_PORT}",
+            flush=True,
+        )
         client.subscribe(TOPIC, qos=1)
-        print(f"[MQTT] Suscrito al tema: '{TOPIC}' (Escuchando en QoS 0 y QoS 1)", flush=True)
+        print(
+            f"[MQTT] Suscrito al tema: '{TOPIC}' (Escuchando en QoS 0 y QoS 1)",
+            flush=True,
+        )
     else:
         print(f"[MQTT] Error de conexión con el Broker. Código: {rc}", flush=True)
 
@@ -26,7 +33,7 @@ def on_message(client, userdata, msg):
     payload_raw = msg.payload.decode("utf-8", errors="replace")
 
     print("\n" + "=" * 55, flush=True)
-    print(f"[NUEVA ALERTA RECIBIDA]", flush=True)
+    print("[NUEVA ALERTA RECIBIDA]", flush=True)
     print(f"  ▸ Tema (Topic)   : {msg.topic}", flush=True)
     print(f"  ▸ QoS del Mensaje: {msg.qos}", flush=True)
 
@@ -40,7 +47,10 @@ def on_message(client, userdata, msg):
             print(f"  ▸ Dispositivo ID : {device_id}", flush=True)
             print(f"  ▸ Latencia Medida: {latencia_ms:.2f} ms", flush=True)
         else:
-            print("  ⚠️  Advertencia: El payload no incluye la clave 'timestamp'.", flush=True)
+            print(
+                "  ⚠️  Advertencia: El payload no incluye la clave 'timestamp'.",
+                flush=True,
+            )
 
         print(f"  ▸ Payload JSON   : {data}", flush=True)
 
@@ -51,7 +61,7 @@ def on_message(client, userdata, msg):
 def main():
     client = mqtt.Client(
         callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
-        client_id="mqtt_subscriber_service"
+        client_id="mqtt_subscriber_service",
     )
 
     client.on_connect = on_connect
