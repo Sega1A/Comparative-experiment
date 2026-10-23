@@ -1,16 +1,15 @@
 import json
-import os
 import sys
 import time
 
 import paho.mqtt.client as mqtt
-from dotenv import load_dotenv
 
-load_dotenv()
+from common.schemas import get_settings
 
-BROKER_HOST = os.getenv("MQTT_BROKER_HOST", "mosquitto")
-BROKER_PORT = int(os.getenv("MQTT_BROKER_PORT", 1883))
-TOPIC = "alertas/caidas"
+settings = get_settings()
+BROKER_HOST = settings.mqtt_broker_host
+BROKER_PORT = settings.mqtt_broker_port
+TOPIC = settings.mqtt_topic
 
 
 def on_connect(client, userdata, flags, rc, properties=None):

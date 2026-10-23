@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session
 
 from common.db.database import get_session
 from common.db.models import AlertaBase, AlertaCoAP, AlertaHTTP, AlertaMQTT
+from common.schemas import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 RESULTS_DIR = REPO_ROOT / "results"
 
 MODELS: dict[str, type[AlertaBase]] = {
