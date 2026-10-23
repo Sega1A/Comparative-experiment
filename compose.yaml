@@ -22,7 +22,9 @@ services:
       - ./servers/mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf
 
   mqtt-subscriber:
-    build: ./servers/mqtt
+    build:
+      context: .
+      dockerfile: servers/mqtt/Dockerfile
     container_name: mqtt-subscriber
     restart: unless-stopped
     env_file: .env

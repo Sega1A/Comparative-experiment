@@ -1,5 +1,6 @@
 import pytest
-from app import create_app
+
+from servers.http.app import create_app
 
 VALID_ALERT = {"device_id": "esp32-01", "sequence": 1, "timestamp": 1760000000000}
 

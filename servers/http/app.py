@@ -1,7 +1,8 @@
 import logging
 
-from alert import AlertDTO, InvalidAlertError
 from flask import Flask, jsonify, request
+
+from servers.http.alert import AlertDTO, InvalidAlertError
 
 logger = logging.getLogger(__name__)
 
