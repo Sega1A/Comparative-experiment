@@ -3,7 +3,7 @@ import logging
 from flask import Flask, jsonify, request
 
 from common.log import setup_logging
-from servers.http.alert import AlertDTO, InvalidAlertError
+from common.schemas import InvalidAlertError, parse_alert
 
 logger = logging.getLogger(__name__)
 
@@ -14,8 +14,7 @@ def create_app() -> Flask:
     @app.post("/http/alert")
     def receive_alert():
         try:
-            payload = request.get_json(silent=True)
-            alert = AlertDTO.from_payload(payload)
+            alert = parse_alert(request.get_data())
         except InvalidAlertError as error:
             logger.warning("Rejected alert: %s", error)
             return jsonify(False), 400

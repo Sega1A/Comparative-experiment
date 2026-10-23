@@ -1,15 +1,14 @@
 import asyncio
 import json
 import logging
-from datetime import UTC, datetime
 
 import aiocoap
 from aiocoap import CON, Code, ContentFormat, Message, resource
 
-from common.alert import AlertDTO, InvalidAlertError
 from common.db import AlertaCoAP, get_session
 from common.db.init_db import init_db
 from common.log import setup_logging
+from common.schemas import AlertDTO, InvalidAlertError, parse_alert
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,7 @@ def save_alert(alert: AlertDTO, request: Message) -> None:
             AlertaCoAP(
                 payload=alert.to_payload(),
                 tamano_bytes=len(request.payload),
-                enviado_en=datetime.fromtimestamp(alert.timestamp / 1000, tz=UTC),
+                enviado_en=alert.sent_at,
                 tipo_mensaje="CON" if request.mtype == CON else "NON",
                 message_id=request.mid,
             )
@@ -36,9 +35,9 @@ class AlertResource(resource.Resource):
 
     async def render_post(self, request: Message) -> Message:
         try:
-            alert = AlertDTO.from_payload(json.loads(request.payload))
+            alert = parse_alert(request.payload)
             await asyncio.to_thread(self._save, alert, request)
-        except (InvalidAlertError, ValueError) as error:
+        except InvalidAlertError as error:
             logger.warning("Rejected alert: %s", error)
             return _reply(Code.BAD_REQUEST, False)
         except Exception:
