@@ -37,7 +37,7 @@ def create_app(save=save_alert) -> Flask:
             logger.exception("Unexpected error while processing alert")
             return jsonify(False), 500
 
-        logger.info("Alert received: %s", alert)
+        logger.info("Alert received: %s", alert.to_payload())
         return jsonify(True), 200
 
     return app

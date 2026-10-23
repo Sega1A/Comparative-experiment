@@ -15,7 +15,7 @@ from common.db.models import AlertaBase, AlertaCoAP, AlertaHTTP, AlertaMQTT
 from common.log import setup_logging
 from common.schemas import REPO_ROOT
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("common.db.export")
 
 RESULTS_DIR = REPO_ROOT / "results"
 

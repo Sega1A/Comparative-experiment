@@ -8,7 +8,7 @@ from common.db.init_db import init_db
 from common.log import setup_logging
 from common.schemas import AlertDTO, InvalidAlertError, get_settings, parse_alert
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("servers.mqtt.subscriber")
 
 # QoS máximo: el broker entrega cada mensaje con el menor entre el QoS con que se
 # publicó y este, así la columna `qos` refleja lo que realmente usó el dispositivo.
@@ -31,7 +31,12 @@ def handle_message(msg: mqtt.MQTTMessage, save=save_alert) -> bool:
         logger.exception("Unexpected error while processing alert")
         return False
 
-    logger.info("Alert received: %s (topic=%s, qos=%s)", alert, msg.topic, msg.qos)
+    logger.info(
+        "Alert received: %s (topic=%s, qos=%s)",
+        alert.to_payload(),
+        msg.topic,
+        msg.qos,
+    )
     return True
 
 

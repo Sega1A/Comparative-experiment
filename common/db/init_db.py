@@ -15,7 +15,7 @@ from common.db.database import get_engine, get_session
 from common.db.models import AlertaCoAP, AlertaHTTP, AlertaMQTT, Base
 from common.log import setup_logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("common.db.init_db")
 
 # Clave del bloqueo de PostgreSQL que evita que dos servidores creen tablas a la vez.
 INIT_LOCK_ID = 7_315_001

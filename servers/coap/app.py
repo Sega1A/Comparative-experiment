@@ -10,7 +10,7 @@ from common.db.init_db import init_db
 from common.log import setup_logging
 from common.schemas import AlertDTO, InvalidAlertError, parse_alert
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("servers.coap.app")
 
 PORT = 5683
 
@@ -45,7 +45,10 @@ class AlertResource(resource.Resource):
             return _reply(Code.INTERNAL_SERVER_ERROR, False)
 
         logger.info(
-            "Alert received: %s (type=%s, mid=%s)", alert, request.mtype, request.mid
+            "Alert received: %s (type=%s, mid=%s)",
+            alert.to_payload(),
+            request.mtype,
+            request.mid,
         )
         return _reply(Code.CHANGED, True)
 
