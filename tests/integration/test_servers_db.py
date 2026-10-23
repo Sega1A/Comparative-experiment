@@ -2,15 +2,17 @@
 
 import asyncio
 import json
+from types import SimpleNamespace
 
 import aiocoap
 import pytest
 from sqlalchemy import select
 
-from common.db import AlertaCoAP, AlertaHTTP, get_session
+from common.db import AlertaCoAP, AlertaHTTP, AlertaMQTT, get_session
 from common.db.init_db import init_db
 from servers.coap.app import AlertResource
 from servers.http.app import create_app
+from servers.mqtt.subscriber import handle_message
 
 pytestmark = pytest.mark.integration
 
@@ -45,5 +47,18 @@ def test_coap_server_stores_the_alert_in_alertas_coap(db):
     with get_session() as session:
         row = session.scalars(select(AlertaCoAP)).one()
         assert (row.tipo_mensaje, row.message_id) == ("NON", 4321)
+        assert row.tamano_bytes == len(BODY)
+        assert row.payload == ALERT
+
+
+def test_mqtt_subscriber_stores_the_alert_in_alertas_mqtt(db):
+    init_db()
+    msg = SimpleNamespace(topic="alertas/caidas", qos=2, payload=BODY)
+
+    assert handle_message(msg) is True
+
+    with get_session() as session:
+        row = session.scalars(select(AlertaMQTT)).one()
+        assert (row.topic, row.qos) == ("alertas/caidas", 2)
         assert row.tamano_bytes == len(BODY)
         assert row.payload == ALERT
