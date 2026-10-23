@@ -17,6 +17,10 @@ Proyecto de la asignatura de Servicios Telemáticos.
 ├── netem/             # Degradación de red
 ├── results/           # Resultados de las pruebas
 ├── docs/              # Documentación
+├── tests/             # Pruebas automáticas (pytest)
+├── compose.yaml       # Levanta toda la pila con Docker Compose
+├── pyproject.toml     # Dependencias, pytest y ruff
+├── .env.example       # Plantilla de configuración
 ├── .gitignore
 └── README.md
 ```
@@ -25,37 +29,148 @@ Proyecto de la asignatura de Servicios Telemáticos.
 
 | Carpeta | Contenido previsto | Tecnología |
 |---|---|---|
-| `common/` | Formato común del mensaje de alerta y módulo de registro de resultados en SQLite. Lo importan los tres servidores y el cliente, para que midan y guarden igual. | Python |
-| `servers/http/` | Servidor que recibe alertas por `POST /alerta` y registra su llegada. | Python, Flask |
-| `servers/coap/` | Servidor que recibe alertas CoAP confirmables y responde con ACK. | Python, aiocoap |
-| `servers/mqtt/` | Configuración de Mosquitto y suscriptor que registra las alertas publicadas. | Mosquitto, Python, paho-mqtt |
+| `common/` | Formato común del mensaje de alerta (`AlertDTO`), configuración, logging y acceso a PostgreSQL. Lo importan los tres servidores y el cliente, para que validen y guarden igual. | Python, Pydantic, SQLAlchemy |
+| `servers/http/` | Servidor que recibe alertas por `POST /alert` y las guarda en `alertas_http`. | Python, Flask |
+| `servers/coap/` | Servidor que recibe alertas CoAP confirmables, responde con ACK y las guarda en `alertas_coap`. | Python, aiocoap |
+| `servers/mqtt/` | Configuración de Mosquitto y suscriptor que guarda en `alertas_mqtt` las alertas publicadas. | Mosquitto, Python, paho-mqtt |
 | `client/` | Cliente en Python que envía alertas por los tres protocolos en la Fase 1 (reemplaza al ESP32). | Python |
 | `firmware/` | Proyecto PlatformIO del ESP32, con tres entornos (`http`, `mqtt`, `coap`) sobre el mismo código de detección. | C++, PlatformIO (Arduino) |
 | `netem/` | Scripts reproducibles de degradación de red (retardo, pérdida, pérdida en ráfagas). | `tc netem` |
-| `results/` | Base de datos de resultados y CSV exportados. Los `.db` no se suben a Git. | SQLite, CSV |
+| `results/` | CSV exportados desde PostgreSQL (`python -m common.db.export`, ver más abajo). | CSV |
 | `docs/` | Diagramas de arquitectura, plan de pruebas, requerimientos y notas del equipo. | Markdown |
+| `tests/` | Pruebas de `common/` y de los tres servidores. `tests/integration/` usa un PostgreSQL real. | pytest |
 
-Cada carpeta tiene un archivo `.gitkeep` vacío para que Git la conserve. Se puede borrar cuando la carpeta tenga contenido real.
+Las carpetas que aún no tienen contenido (`client/`, `firmware/`, `netem/`, `results/`) conservan un `.gitkeep` vacío para que Git las mantenga. Se puede borrar cuando la carpeta tenga contenido real.
 
 ## Cómo ejecutar
 
-Pendiente. Se completará cuando existan los servicios (Docker Compose, firmware y cliente).
+El cliente simulado y el firmware aún no existen; hoy se prueba cada servidor con `curl`, `mosquitto_pub`, `aiocoap-client` o `servers/coap/smoke.py` (cada `README.md` de `servers/` explica cómo).
+
+### Todo el proyecto con Docker Compose
+
+Desde la raíz del repositorio:
+
+```bash
+cp .env.example .env          # cambie la clave en POSTGRES_PASSWORD y en DATABASE_URL
+docker compose up -d --build  # base de datos, HTTP, CoAP, broker MQTT y suscriptor
+docker compose logs -f        # logs de todos los servicios con el mismo formato
+```
+
+| Servicio | Puerto en su máquina | Para probarlo |
+|---|---|---|
+| `db` | `POSTGRES_PUERTO` (5432 por defecto) | `docker compose exec db psql -U <usuario> <base>` |
+| `http` | 8000 | `POST http://localhost:8000/alert` |
+| `coap` | 5683/udp | `coap://localhost:5683/alert` |
+| `mosquitto` | 1883 | publicar en el topic `alert` |
+| `mqtt-subscriber` | — | guarda lo publicado en `alert` |
+
+Los servidores de Compose siempre guardan en el servicio `db` (base local), aunque su `.env` apunte a otra base. Cada servidor crea las tablas que falten al arrancar. Para levantar solo algunos: `docker compose up -d --build db http`.
+
+Detener: `docker compose down` (conserva los datos) o `docker compose down -v` (borra también la base).
+
+### Un servidor suelto, sin Docker
+
+Necesita una PostgreSQL accesible (por ejemplo `docker compose up -d db`) y `DATABASE_URL` apuntando a `localhost` (ver «Configurar la conexión»). Con el entorno virtual activado (paso 2) y desde la raíz:
+
+```bash
+python -m servers.http.app          # HTTP en el puerto 8000
+python -m servers.coap.app          # CoAP en el puerto UDP 5683
+python -m servers.mqtt.subscriber   # suscriptor; necesita un broker (MQTT_BROKER_HOST)
+```
+
+Los pasos de cada servidor están en su propio `README.md`: [HTTP](servers/http/README.md), [CoAP](servers/coap/README.md), [MQTT](servers/mqtt/README.md).
+
+### Pruebas y calidad del código
+
+```bash
+pytest                                   # pruebas que no necesitan base de datos
+TEST_DATABASE_URL=postgresql://postgres:clave@localhost:5499/alertas pytest -m integration
+ruff check . && ruff format --check --exclude "*.md" .
+```
+
+`TEST_DATABASE_URL` debe apuntar a una base desechable: las pruebas de integración borran las tablas de alertas. Sin esa variable se omiten. El CI ejecuta los tres comandos en cada pull request.
+
+## Convenciones del proyecto
+
+### Mensaje de alerta
+
+Los tres protocolos reciben el mismo objeto JSON, validado por `AlertDTO` (`common/schemas/alert.py`):
+
+```json
+{ "device_id": "esp32-01", "sequence": 1, "timestamp": 1760000000000 }
+```
+
+| Campo | Tipo | Obligatorio |
+|---|---|---|
+| `device_id` | texto | sí |
+| `sequence` | entero | sí |
+| `timestamp` | entero, milisegundos desde epoch (UTC) | sí |
+| `event_type` | texto | no |
+| `battery_level` | entero | no |
+| `acceleration` | número | no |
+
+No se aceptan otros campos ni tipos distintos (`"1"` no vale como entero). `AlertDTO.model_json_schema()` entrega el contrato como JSON Schema.
+
+### Puntos de entrada y respuestas
+
+| Protocolo | Entrada | Alerta válida | Alerta inválida | Error al guardar |
+|---|---|---|---|---|
+| HTTP | `POST /alert` | `200` y `true` | `400` y `false` | `500` y `false` |
+| CoAP | `POST /alert` | `2.04 Changed` y `true` | `4.00 Bad Request` y `false` | `5.00` y `false` |
+| MQTT | topic `alert` (configurable con `MQTT_TOPIC`) | se guarda | se descarta y queda en el log | queda en el log |
+
+### Qué se guarda y cómo se mide
+
+- `tamano_bytes` es el tamaño en bytes del mensaje de la aplicación (el cuerpo JSON recibido), sin cabeceras HTTP, CoAP ni MQTT. Es la misma definición en los tres protocolos.
+- `recibido_en` lo pone la base al insertar y `enviado_en` sale del `timestamp` de la alerta. La latencia (`latency_ms` en la exportación) solo es válida si los relojes del emisor y del servidor coinciden: en Docker lo hacen, en el ESP32 requerirá sincronizar la hora.
+- `perfil_red` se llena con la variable `NETWORK_PROFILE` (por ejemplo `ideal` o `perdida_10`); sin ella queda vacío.
+- MQTT se suscribe con QoS 2, de modo que la columna `qos` es el QoS con que publicó el dispositivo.
+- Con QoS 1 el broker puede entregar un mensaje más de una vez, lo que generaría filas repetidas (distinguibles por `device_id` y `sequence`). Hoy no se eliminan duplicados.
+
+### Idiomas y nombres
+
+Las tablas y columnas de la base están en español (`alertas_http`, `recibido_en`, `tamano_bytes`) y el código, la API y los CSV exportados en inglés (`protocol`, `latency_ms`, `alerts_http.csv`). Es una convención deliberada: los nombres de la base no se renombran porque implicaría migrar los datos ya guardados.
+
+### Logging
+
+Todo el código escribe con `logging` (nunca `print`), con el mismo formato en servidores y herramientas:
+
+```
+2026-10-23 16:50:38,439 INFO     servers.http.app: Alert received: {...}
+```
+
+Cada módulo usa `logger = logging.getLogger(...)` y el punto de entrada llama una vez a `setup_logging()` (`common/log.py`). El nivel se ajusta con `LOG_LEVEL`. En Docker la hora sale en UTC. La única excepción es `servers/coap/smoke.py`, cuya salida es el informe de la prueba. El registro de acceso propio de gunicorn (HTTP) mantiene su formato.
+
+### Configuración
+
+Toda la configuración se lee en `common/schemas/config.py` (`Settings`): primero las variables de entorno y luego el `.env` de la raíz. Para agregar una variable, un campo en `Settings` y una línea en `.env.example`.
+
+| Variable | Para qué | Por defecto |
+|---|---|---|
+| `DATABASE_URL` | Conexión a PostgreSQL | obligatoria |
+| `MQTT_BROKER_HOST`, `MQTT_BROKER_PORT` | Broker MQTT | `localhost`, `1883` |
+| `MQTT_TOPIC` | Topic de las alertas | `alert` |
+| `NETWORK_PROFILE` | Valor de `perfil_red` en cada alerta guardada | vacío |
+| `LOG_LEVEL` | Nivel de los logs | `INFO` |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PUERTO` | Contenedor `db` de Compose | ver `.env.example` |
 
 ## Base de datos (PostgreSQL + SQLAlchemy)
 
-Las alertas que recibe cada servidor se guardan en PostgreSQL 16. Todo el código de acceso está en `common/db/` y los servidores lo importan desde ahí; nadie define tablas dentro de `servers/`.
+Las alertas que recibe cada servidor se guardan en PostgreSQL 16. Todo el código de acceso está en `common/db/` y los servidores lo importan desde ahí; nadie define tablas dentro de `servers/`. El resto de `common/` es `schemas/` (`AlertDTO` y `Settings`, ver `docs/pydantic.md`) y `log.py`.
 
 ```
 common/db/
 ├── __init__.py      # exporta modelos, get_engine y get_session
 ├── database.py      # engine, sesión y lectura de DATABASE_URL
 ├── models.py        # AlertaBase y las tablas alertas_http, alertas_mqtt, alertas_coap
-└── init_db.py       # crea las tablas (create_all)
+├── repository.py    # store_alert(): guardado común a los tres servidores
+├── init_db.py       # crea las tablas (create_all)
+└── export.py        # exporta las alertas a CSV
 ```
 
 ### 1. Requisitos
 
-- Python 3.10 o superior
+- Python 3.11 o superior
 - Docker Desktop (o Docker Engine con Compose)
 
 ### 2. Instalar dependencias
@@ -66,8 +181,10 @@ Desde la raíz del repositorio:
 python -m venv .venv
 # Windows:      .venv\Scripts\activate
 # Linux/macOS:  source .venv/bin/activate
-pip install -r requirements.txt
+pip install -e ".[dev,http,coap,mqtt]"
 ```
+
+Las dependencias y sus versiones están en `pyproject.toml`: una base común (SQLAlchemy, psycopg, Pydantic) más un extra por servidor (`http`, `coap`, `mqtt`) y `dev` (pytest, ruff). Para un solo servidor basta su extra, por ejemplo `pip install -e ".[coap]"`.
 
 ### 3. Configurar la conexión
 
@@ -84,6 +201,8 @@ docker compose up -d db
 ```
 
 Los datos se guardan en el volumen con nombre `datos_postgres`, así que no se pierden al apagar el contenedor. Para borrarlos por completo: `docker compose down -v`.
+
+Los servidores crean las tablas que falten al arrancar (es seguro aunque arranquen a la vez), así que este paso y el siguiente solo hacen falta si quiere crearlas a mano.
 
 ### 5. Crear las tablas
 
@@ -110,18 +229,25 @@ Columnas comunes (`AlertaBase`): `id`, `recibido_en` (con zona horaria, `now()` 
 ### Uso desde un servidor
 
 ```python
-from common.db import get_session, AlertaHTTP
+from common.db import AlertaHTTP, store_alert
+from common.schemas import parse_alert
 
-with get_session() as sesion:
-    sesion.add(AlertaHTTP(
-        payload=datos,
-        tamano_bytes=len(cuerpo),
-        ip_origen=request.remote_addr,
-        content_type=request.content_type,
-    ))
+alert = parse_alert(cuerpo)  # lanza InvalidAlertError si no cumple el formato
+store_alert(
+    AlertaHTTP, alert, len(cuerpo),
+    ip_origen=request.remote_addr,
+    content_type=request.content_type,
+)
 ```
 
-`get_session()` hace commit al salir del bloque y rollback si hay un error.
+`store_alert()` completa `payload`, `tamano_bytes`, `enviado_en` y `perfil_red`; el servidor solo aporta las columnas propias de su protocolo. Para otras consultas, `get_session()` hace commit al salir del bloque y rollback si hay un error:
+
+```python
+from common.db import get_session
+
+with get_session() as sesion:
+    sesion.add(...)
+```
 
 ### Exportar resultados a CSV
 

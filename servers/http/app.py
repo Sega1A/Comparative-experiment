@@ -7,7 +7,7 @@ from common.db.init_db import init_db
 from common.log import setup_logging
 from common.schemas import AlertDTO, InvalidAlertError, parse_alert
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("servers.http.app")
 
 PORT = 8000
 
