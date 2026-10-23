@@ -10,6 +10,7 @@ with get_session() as sesion:
 
 from common.db.database import get_database_url, get_engine, get_session
 from common.db.models import AlertaBase, AlertaCoAP, AlertaHTTP, AlertaMQTT, Base
+from common.db.repository import store_alert
 
 __all__ = [
     "AlertaBase",
@@ -20,4 +21,5 @@ __all__ = [
     "get_database_url",
     "get_engine",
     "get_session",
+    "store_alert",
 ]

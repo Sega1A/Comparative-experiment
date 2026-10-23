@@ -9,7 +9,7 @@ import argparse
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import inspect, select
+from sqlalchemy import inspect, select, text
 
 from common.db.database import get_engine, get_session
 from common.db.models import AlertaCoAP, AlertaHTTP, AlertaMQTT, Base
@@ -17,11 +17,21 @@ from common.log import setup_logging
 
 logger = logging.getLogger(__name__)
 
+# Clave del bloqueo de PostgreSQL que evita que dos servidores creen tablas a la vez.
+INIT_LOCK_ID = 7_315_001
+
 
 def init_db() -> list:
-    """Crea las tablas que falten y devuelve la lista de tablas del proyecto."""
+    """Crea las tablas que falten y devuelve la lista de tablas del proyecto.
+
+    Es seguro llamarla desde varios procesos a la vez (arranque de los servidores).
+    """
     engine = get_engine()
-    Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        connection.execute(
+            text("SELECT pg_advisory_xact_lock(:id)"), {"id": INIT_LOCK_ID}
+        )
+        Base.metadata.create_all(connection)
     existentes = set(inspect(engine).get_table_names())
     return [t for t in Base.metadata.tables if t in existentes]
 
