@@ -14,7 +14,7 @@ def fake_save(alert, msg):
     saved.append((alert, msg.topic, msg.qos, len(msg.payload)))
 
 
-def message(payload, topic="alertas/caidas", qos=1):
+def message(payload, topic="alert", qos=1):
     if not isinstance(payload, bytes):
         payload = json.dumps(payload).encode()
     return SimpleNamespace(topic=topic, qos=qos, payload=payload)
@@ -32,7 +32,7 @@ def test_valid_alert_is_saved_with_topic_qos_and_size():
 
     alert, topic, qos, size = saved[0]
     assert alert.device_id == "esp32-01"
-    assert (topic, qos, size) == ("alertas/caidas", 2, len(msg.payload))
+    assert (topic, qos, size) == ("alert", 2, len(msg.payload))
 
 
 def test_optional_fields_are_accepted():
@@ -81,16 +81,16 @@ class FakeClient:
 
 def test_on_connect_subscribes_with_qos_2_to_the_configured_topic():
     client = FakeClient()
-    settings = SimpleNamespace(mqtt_topic="alertas/caidas")
+    settings = SimpleNamespace(mqtt_topic="alert")
 
     subscriber.on_connect(client, settings, {}, SimpleNamespace(is_failure=False))
 
-    assert client.subscriptions == [("alertas/caidas", 2)]
+    assert client.subscriptions == [("alert", 2)]
 
 
 def test_on_connect_does_not_subscribe_when_connection_fails():
     client = FakeClient()
-    settings = SimpleNamespace(mqtt_topic="alertas/caidas")
+    settings = SimpleNamespace(mqtt_topic="alert")
 
     subscriber.on_connect(client, settings, {}, SimpleNamespace(is_failure=True))
 

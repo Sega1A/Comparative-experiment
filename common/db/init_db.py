@@ -54,7 +54,7 @@ def prueba_insertar_y_leer() -> None:
             tamano_bytes=64,
             enviado_en=ahora,
             perfil_red="ideal",
-            topic="alertas/caidas",
+            topic="alert",
             qos=1,
         ),
         AlertaCoAP(

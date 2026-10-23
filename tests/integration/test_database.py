@@ -38,7 +38,7 @@ def test_init_db_check_inserts_reads_and_cleans(db):
     ("model", "metadata"),
     [
         (AlertaHTTP, {"ip_origen": "10.0.0.5", "content_type": "application/json"}),
-        (AlertaMQTT, {"topic": "alertas/caidas", "qos": 2}),
+        (AlertaMQTT, {"topic": "alert", "qos": 2}),
         (AlertaCoAP, {"tipo_mensaje": "CON", "message_id": 4321}),
     ],
 )

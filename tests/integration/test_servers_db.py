@@ -24,7 +24,7 @@ def test_http_server_stores_the_alert_in_alertas_http(db):
     init_db()
     client = create_app().test_client()
 
-    response = client.post("/http/alert", data=BODY, content_type="application/json")
+    response = client.post("/alert", data=BODY, content_type="application/json")
 
     assert response.get_json() is True
     with get_session() as session:
@@ -53,12 +53,12 @@ def test_coap_server_stores_the_alert_in_alertas_coap(db):
 
 def test_mqtt_subscriber_stores_the_alert_in_alertas_mqtt(db):
     init_db()
-    msg = SimpleNamespace(topic="alertas/caidas", qos=2, payload=BODY)
+    msg = SimpleNamespace(topic="alert", qos=2, payload=BODY)
 
     assert handle_message(msg) is True
 
     with get_session() as session:
         row = session.scalars(select(AlertaMQTT)).one()
-        assert (row.topic, row.qos) == ("alertas/caidas", 2)
+        assert (row.topic, row.qos) == ("alert", 2)
         assert row.tamano_bytes == len(BODY)
         assert row.payload == ALERT

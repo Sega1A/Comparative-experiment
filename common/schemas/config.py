@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     database_url: str
     mqtt_broker_host: str = "localhost"
     mqtt_broker_port: int = 1883
-    mqtt_topic: str = "alertas/caidas"
+    mqtt_topic: str = "alert"
     network_profile: str | None = None
     log_level: str = "INFO"
 

@@ -25,7 +25,7 @@ def save_alert(alert: AlertDTO, request: Request) -> None:
 def create_app(save=save_alert) -> Flask:
     app = Flask(__name__)
 
-    @app.post("/http/alert")
+    @app.post("/alert")
     def receive_alert():
         try:
             alert = parse_alert(request.get_data())
