@@ -4,7 +4,8 @@ import aiocoap
 import pytest
 import pytest_asyncio
 from aiocoap import Code, Message, Reliable, Unreliable
-from app import create_site
+
+from servers.coap.app import create_site
 
 VALID_ALERT = {"device_id": "esp32-01", "sequence": 1, "timestamp": 1760000000000}
 PORT = 56830

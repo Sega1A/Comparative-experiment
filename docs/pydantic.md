@@ -5,8 +5,9 @@ El proyecto usa Pydantic v2 para validar datos, convertir objetos a JSON y leer 
 ```
 common/schemas/
 ├── __init__.py   # exporta Settings, get_settings y los esquemas
-├── config.py     # configuración desde variables de entorno y .env
-└── example.py    # esquema de ejemplo, se reemplaza luego por los reales
+├── alert.py      # AlertDTO: el mensaje de alerta real, y parse_alert()
+├── config.py     # Settings: configuración desde variables de entorno y .env
+└── example.py    # Person: esquema de ejemplo para aprender (no lo usa ningún servidor)
 ```
 
 Los servidores, el cliente y el módulo de base de datos importan desde `common.schemas`. Nadie define esquemas dentro de `servers/`.
@@ -16,19 +17,16 @@ Los servidores, el cliente y el módulo de base de datos importan desde `common.
 Desde la raíz del repositorio, con el entorno virtual activado:
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[dev]"
 ```
 
-Para correr además las pruebas:
+Eso instala también `pytest` y `ruff`. Para correr las pruebas: `pytest`.
 
-```bash
-pip install -r requirements-dev.txt
-pytest
-```
-
-Las versiones están fijas en `requirements.txt` (`pydantic==2.14.1`, `pydantic-settings==2.16.0`).
+Las versiones están fijas en `pyproject.toml` (`pydantic==2.14.1`, `pydantic-settings==2.16.0`).
 
 ## Definir un esquema
+
+> `Person` y los ejemplos de esta guía sirven para aprender el patrón. El esquema real del proyecto es `AlertDTO` (más abajo).
 
 Un esquema es una clase que hereda de `BaseModel`. Cada atributo es un campo, y `Field` agrega reglas.
 
@@ -105,6 +103,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding="utf-8", extra="ignore")
 
     database_url: str
+    mqtt_broker_host: str = "localhost"
+    # ...y el resto de variables, ver common/schemas/config.py
 ```
 
 Para usarla:
@@ -121,6 +121,7 @@ Detalles importantes:
 - El nombre del campo se busca sin importar mayúsculas: `database_url` lee `DATABASE_URL`.
 - Si la variable existe en el entorno del sistema, tiene prioridad sobre el `.env`. Así un contenedor de Docker puede usar otro valor sin tocar el archivo.
 - La ruta del `.env` se calcula desde la raíz del repositorio, así que funciona aunque el programa se ejecute desde otra carpeta.
+- `database_url` también se normaliza: acepta `postgresql://...` (formato Prisma/Supabase) y lo convierte a `postgresql+psycopg://...`.
 - `extra="ignore"` permite que el `.env` tenga otras variables, como `POSTGRES_USER`. Sin esa opción, `pydantic-settings` falla al encontrar variables que no son campos de `Settings`.
 - `get_settings()` crea la configuración una sola vez y la reutiliza. Si falta una variable obligatoria, lanza `ValidationError` la primera vez que se llama, por eso conviene llamarla al arrancar cada servidor.
 
@@ -136,9 +137,29 @@ class Settings(BaseSettings):
 
 Un campo con valor por defecto es opcional. Pydantic convierte el texto del `.env` al tipo indicado, y falla si no puede, por ejemplo `HTTP_PORT=abc`.
 
-## Agregar un esquema real
+## El mensaje de alerta: `AlertDTO`
 
-1. Crear un archivo en `common/schemas/`, por ejemplo `alert.py`, con la clase del esquema.
+`common/schemas/alert.py` define el mensaje que reciben los tres protocolos. Es un modelo de Pydantic estricto: no acepta campos extra, ni `"1"` como entero, ni `True` como número, y es inmutable.
+
+```python
+from common.schemas import InvalidAlertError, parse_alert
+
+try:
+    alert = parse_alert(cuerpo)   # bytes o texto JSON tal como llegó
+except InvalidAlertError as error:
+    ...                           # responder 400 / descartar, el motivo está en `error`
+
+alert.to_payload()  # dict con los campos presentes, para la columna `payload`
+alert.sent_at       # datetime UTC calculado desde `timestamp` (milisegundos)
+```
+
+`parse_alert()` envuelve el `ValidationError` de Pydantic en `InvalidAlertError`, para que los servidores no dependan de Pydantic. El JSON mal formado y el JSON que no cumple el formato dan el mismo error. `AlertDTO.model_json_schema()` genera el contrato en JSON Schema, útil para quien programe el firmware.
+
+El guardado en la base lo hace `store_alert()` (`common/db/repository.py`).
+
+## Agregar un esquema nuevo
+
+1. Crear un archivo en `common/schemas/` con la clase del esquema.
 2. Exportarla en `common/schemas/__init__.py` y agregarla a `__all__`.
 3. Agregar pruebas en `tests/` con al menos un dato válido y uno inválido.
-4. Cuando ya existan esquemas reales, borrar `example.py` y sus pruebas.
+4. `Person` y sus pruebas pueden borrarse cuando ya no se necesite el ejemplo.

@@ -1,3 +1,10 @@
+# Variables comunes a los servidores. Dentro de Compose la base es siempre el
+# servicio "db" (la URL del .env es para ejecutar el código fuera de Docker).
+x-app-environment: &app-environment
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+  NETWORK_PROFILE: ${NETWORK_PROFILE:-}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
 services:
   db:
     image: postgres:16
@@ -12,9 +19,35 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  http:
+    build:
+      context: .
+      dockerfile: servers/http/Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *app-environment
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  coap:
+    build:
+      context: .
+      dockerfile: servers/coap/Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *app-environment
+    ports:
+      - "5683:5683/udp"
+    depends_on:
+      db:
+        condition: service_healthy
+
   mosquitto:
     image: eclipse-mosquitto:2.0
-    container_name: mqtt-broker
     restart: unless-stopped
     ports:
       - "1883:1883"
@@ -22,29 +55,19 @@ services:
       - ./servers/mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf
 
   mqtt-subscriber:
-    build: ./servers/mqtt
-    container_name: mqtt-subscriber
+    build:
+      context: .
+      dockerfile: servers/mqtt/Dockerfile
     restart: unless-stopped
-    env_file: .env
+    environment:
+      <<: *app-environment
+      MQTT_BROKER_HOST: mosquitto
+      MQTT_BROKER_PORT: 1883
     depends_on:
       db:
         condition: service_healthy
       mosquitto:
         condition: service_started
-    environment:
-      - MQTT_BROKER_HOST=mosquitto
-      - MQTT_BROKER_PORT=1883
-  coap:
-    build:
-      context: .
-      dockerfile: servers/coap/Dockerfile
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-    ports:
-      - "5683:5683/udp"
-    depends_on:
-      db:
-        condition: service_healthy
+
 volumes:
   datos_postgres:
