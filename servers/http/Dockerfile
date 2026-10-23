@@ -9,4 +9,4 @@ COPY servers/__init__.py ./servers/__init__.py
 COPY servers/http ./servers/http
 RUN --mount=type=cache,target=/root/.cache/pip pip install ".[http]"
 EXPOSE 8000
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--access-logfile", "-", "servers.http.app:create_app()"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--access-logfile", "-", "servers.http.app:create_wsgi_app()"]

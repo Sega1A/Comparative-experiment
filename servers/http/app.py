@@ -2,6 +2,7 @@ import logging
 
 from flask import Flask, jsonify, request
 
+from common.log import setup_logging
 from servers.http.alert import AlertDTO, InvalidAlertError
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,12 @@ def create_app() -> Flask:
     return app
 
 
+def create_wsgi_app() -> Flask:
+    """Punto de entrada de gunicorn: configura el logging y crea la app."""
+    setup_logging()
+    return create_app()
+
+
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    setup_logging()
     create_app().run(host="0.0.0.0", port=8000)

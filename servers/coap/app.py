@@ -9,6 +9,7 @@ from aiocoap import CON, Code, ContentFormat, Message, resource
 from common.alert import AlertDTO, InvalidAlertError
 from common.db import AlertaCoAP, get_session
 from common.db.init_db import init_db
+from common.log import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -76,5 +77,5 @@ async def main(bind=("0.0.0.0", PORT)) -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    setup_logging()
     asyncio.run(main())

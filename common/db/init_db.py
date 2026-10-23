@@ -6,12 +6,16 @@ Uso, desde la raíz del repositorio:
 """
 
 import argparse
+import logging
 from datetime import UTC, datetime
 
 from sqlalchemy import inspect, select
 
 from common.db.database import get_engine, get_session
 from common.db.models import AlertaCoAP, AlertaHTTP, AlertaMQTT, Base
+from common.log import setup_logging
+
+logger = logging.getLogger(__name__)
 
 
 def init_db() -> list:
@@ -58,9 +62,12 @@ def prueba_insertar_y_leer() -> None:
         for fila in filas:
             modelo = type(fila)
             leida = sesion.scalars(select(modelo).where(modelo.id == fila.id)).one()
-            print(
-                f"  OK {modelo.__tablename__}: id={leida.id} "
-                f"recibido_en={leida.recibido_en.isoformat()} payload={leida.payload}"
+            logger.info(
+                "OK %s: id=%s recibido_en=%s payload=%s",
+                modelo.__tablename__,
+                leida.id,
+                leida.recibido_en.isoformat(),
+                leida.payload,
             )
         for fila in filas:
             sesion.delete(fila)
@@ -76,11 +83,12 @@ def main() -> None:
     args = parser.parse_args()
 
     tablas = init_db()
-    print(f"Tablas listas ({len(tablas)}): {', '.join(tablas)}")
+    logger.info("Tablas listas (%s): %s", len(tablas), ", ".join(tablas))
     if args.prueba:
-        print("Prueba de inserción y lectura:")
+        logger.info("Prueba de inserción y lectura:")
         prueba_insertar_y_leer()
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()

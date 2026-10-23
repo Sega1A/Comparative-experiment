@@ -1,6 +1,7 @@
 import argparse
 import csv
 import json
+import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,7 +12,10 @@ from sqlalchemy.orm import Session
 
 from common.db.database import get_session
 from common.db.models import AlertaBase, AlertaCoAP, AlertaHTTP, AlertaMQTT
+from common.log import setup_logging
 from common.schemas import REPO_ROOT
+
+logger = logging.getLogger(__name__)
 
 RESULTS_DIR = REPO_ROOT / "results"
 
@@ -142,9 +146,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     output_dir = args.output or default_output_dir()
     with get_session() as session:
         counts = export_results(session, protocols, output_dir, args.profile)
-    print(f"Exported to {output_dir}")
+    logger.info("Exported to %s", output_dir)
     for name, count in counts.items():
-        print(f"  alerts_{name}.csv: {count} rows")
+        logger.info("alerts_%s.csv: %s rows", name, count)
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -154,4 +158,5 @@ def _as_utc(value: datetime) -> datetime:
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()
