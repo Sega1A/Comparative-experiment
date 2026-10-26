@@ -1,13 +1,12 @@
-# Imagen base ligera de Python 3.12
-FROM python:3.12-slim
-
+# Se construye con el contexto en la raíz del repositorio (ver compose.yaml).
 FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml ./
+COPY common ./common
+COPY servers/__init__.py ./servers/__init__.py
+COPY servers/mqtt ./servers/mqtt
+RUN --mount=type=cache,target=/root/.cache/pip pip install ".[mqtt]"
 
-COPY . .
-
-CMD ["python", "subscriber.py"]
+CMD ["python", "-m", "servers.mqtt.subscriber"]

@@ -150,7 +150,7 @@ def test_export_with_no_alerts_writes_header_only(session, tmp_path):
 
 
 def test_main_exports_using_command_line_options(
-    session, tmp_path, monkeypatch, capsys
+    session, tmp_path, monkeypatch, caplog
 ):
     @contextmanager
     def fake_session():
@@ -158,10 +158,13 @@ def test_main_exports_using_command_line_options(
 
     monkeypatch.setattr(export, "get_session", fake_session)
 
-    export.main(["--protocol", "http", "--output", str(tmp_path), "--profile", "ideal"])
+    with caplog.at_level("INFO", logger="common.db.export"):
+        export.main(
+            ["--protocol", "http", "--output", str(tmp_path), "--profile", "ideal"]
+        )
 
     assert len(read_csv(tmp_path / "alerts_http.csv")) == 1
-    assert "alerts_http.csv: 1 rows" in capsys.readouterr().out
+    assert "alerts_http.csv: 1 rows" in caplog.text
 
 
 def test_default_output_dir_is_inside_results():

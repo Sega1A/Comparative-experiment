@@ -1,16 +1,16 @@
 import asyncio
 import json
 import logging
-from datetime import UTC, datetime
 
 import aiocoap
 from aiocoap import CON, Code, ContentFormat, Message, resource
 
-from common.alert import AlertDTO, InvalidAlertError
 from common.db import AlertaCoAP, get_session
 from common.db.init_db import init_db
+from common.log import setup_logging
+from common.schemas import AlertDTO, InvalidAlertError, parse_alert
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("servers.coap.app")
 
 PORT = 5683
 
@@ -21,7 +21,7 @@ def save_alert(alert: AlertDTO, request: Message) -> None:
             AlertaCoAP(
                 payload=alert.to_payload(),
                 tamano_bytes=len(request.payload),
-                enviado_en=datetime.fromtimestamp(alert.timestamp / 1000, tz=UTC),
+                enviado_en=alert.sent_at,
                 tipo_mensaje="CON" if request.mtype == CON else "NON",
                 message_id=request.mid,
             )
@@ -35,9 +35,9 @@ class AlertResource(resource.Resource):
 
     async def render_post(self, request: Message) -> Message:
         try:
-            alert = AlertDTO.from_payload(json.loads(request.payload))
+            alert = parse_alert(request.payload)
             await asyncio.to_thread(self._save, alert, request)
-        except (InvalidAlertError, ValueError) as error:
+        except InvalidAlertError as error:
             logger.warning("Rejected alert: %s", error)
             return _reply(Code.BAD_REQUEST, False)
         except Exception:
@@ -45,7 +45,10 @@ class AlertResource(resource.Resource):
             return _reply(Code.INTERNAL_SERVER_ERROR, False)
 
         logger.info(
-            "Alert received: %s (type=%s, mid=%s)", alert, request.mtype, request.mid
+            "Alert received: %s (type=%s, mid=%s)",
+            alert.to_payload(),
+            request.mtype,
+            request.mid,
         )
         return _reply(Code.CHANGED, True)
 
@@ -76,5 +79,5 @@ async def main(bind=("0.0.0.0", PORT)) -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    setup_logging()
     asyncio.run(main())

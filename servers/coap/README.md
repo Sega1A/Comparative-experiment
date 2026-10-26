@@ -6,13 +6,13 @@ Recibe alertas por CoAP sobre UDP, responde con ACK a los mensajes confirmables 
 | ------------- | --------------------------------------------------------------- |
 | `app.py`      | Servidor (aiocoap). Recurso `POST /alert` en el puerto UDP 5683 |
 | `smoke.py`    | Script de prueba manual contra un servidor en ejecución         |
-| `test_app.py` | Tests automáticos con pytest (no necesitan base de datos)       |
+| `tests/test_coap.py` | Tests automáticos (en la carpeta `tests/` de la raíz, no necesitan base de datos) |
 | `Dockerfile`  | Imagen del servicio, se construye desde la raíz del repo        |
 
 ## Cómo funciona
 
 - **Ruta:** `POST coap://HOST:5683/alert`
-- **Cuerpo (JSON):** `device_id`, `sequence` y `timestamp` son obligatorios; hay campos opcionales adicionales (ver `common/alert.py`) y no se aceptan otros.
+- **Cuerpo (JSON):** `device_id`, `sequence` y `timestamp` son obligatorios; hay campos opcionales adicionales (ver `common/schemas/alert.py` y el README principal) y no se aceptan otros.
 
   ```json
   { "device_id": "esp32-01", "sequence": 1, "timestamp": 1760000000000 }
@@ -31,7 +31,7 @@ Recibe alertas por CoAP sobre UDP, responde con ACK a los mensajes confirmables 
   | Otro método (GET, etc.)              | `4.05 Method Not Allowed`    |         |
 
 - **Mensajes CON:** el servidor responde con el ACK llevando ya la respuesta (piggyback). Los mensajes NON también se aceptan.
-- **Qué se guarda en `alertas_coap`:** `payload`, `tamano_bytes`, `enviado_en` (del `timestamp` de la alerta), `tipo_mensaje` (`CON` o `NON`) y `message_id`. Las alertas rechazadas no se guardan.
+- **Qué se guarda en `alertas_coap`:** `payload`, `tamano_bytes`, `enviado_en` (del `timestamp` de la alerta), `perfil_red` (de `NETWORK_PROFILE`), `tipo_mensaje` (`CON` o `NON`) y `message_id`. Las alertas rechazadas no se guardan.
 - **Importante:** CoAP usa UDP. Si el puerto se publica sin `/udp` (por ejemplo `5683:5683`), el ESP32 no llega y el error es confuso. En `compose.yaml` ya está como `5683:5683/udp`.
 
 ## Con Docker
@@ -42,8 +42,10 @@ Todos los comandos se ejecutan desde la **raíz del repositorio**.
 
 ```bash
 cp .env.example .env          # ajuste las claves
-docker compose up -d --build  # levanta la base de datos (db) y el servidor (coap)
+docker compose up -d --build db coap  # solo la base de datos y este servidor
 ```
+
+Para levantar todos los servicios del proyecto a la vez: `docker compose up -d --build` (ver el README principal).
 
 ### 2. Comprobar que arrancó
 
@@ -74,10 +76,10 @@ Al final debe decir `8/8 pruebas correctas`.
 ### 4. Ver lo guardado
 
 ```bash
-docker compose exec db psql -U postgres alertas -c "select id, tipo_mensaje, message_id, payload from alertas_coap order by id desc limit 5"
+docker compose exec db psql -U USUARIO BASE -c "select id, tipo_mensaje, message_id, payload from alertas_coap order by id desc limit 5"
 ```
 
-Cambie `postgres` y `alertas` si en su `.env` el usuario y la base son otros.
+Reemplace `USUARIO` y `BASE` por `POSTGRES_USER` y `POSTGRES_DB` de su `.env`.
 
 ### Detener
 
@@ -99,24 +101,22 @@ Desde la **raíz del repositorio**:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r servers/coap/requirements-dev.txt
+pip install -e ".[dev,coap]"
 ```
 
 ### 2. Configurar
 
 ```bash
 export DATABASE_URL=postgresql+psycopg://postgres:CLAVE@localhost:5433/alertas
-export PYTHONPATH=$PWD
 ```
 
 - Use el usuario, la clave y el puerto de su `.env` (`POSTGRES_PUERTO`).
-- No use el `DATABASE_URL` del `.env` tal cual: apunta al host `db`, que solo existe dentro de Docker.
-- `PYTHONPATH` debe ser la ruta absoluta de la raíz; con una ruta relativa falla con `No module named 'common'`.
+- No use el `DATABASE_URL` del `.env` tal cual si apunta al host `db`: ese nombre solo existe dentro de Docker.
 
 ### 3. Ejecutar el servidor
 
 ```bash
-python servers/coap/app.py
+python -m servers.coap.app
 ```
 
 Al arrancar crea las tablas que falten. Si el contenedor `coap` está arriba, deténgalo antes (`docker compose stop coap`): ambos usan el puerto UDP 5683.
@@ -132,11 +132,14 @@ python servers/coap/smoke.py
 ### 5. Tests automáticos
 
 ```bash
-cd servers/coap
-pytest
+pytest tests/test_coap.py
 ```
 
-No necesitan base de datos ni servidor en ejecución.
+No necesitan base de datos ni servidor en ejecución. (`pytest` sin argumentos ejecuta las pruebas de todo el proyecto.)
+
+## Dentro de todo el proyecto
+
+Este servidor es el servicio `coap` de `compose.yaml` y comparte la base de datos con `http` y `mqtt-subscriber`: cada protocolo guarda en su tabla (`alertas_coap`, `alertas_http`, `alertas_mqtt`) con el mismo formato de alerta, y `python -m common.db.export` las exporta juntas. Con `docker compose up -d --build` quedan los tres servidores arriba. Si otro servicio ya usa el puerto UDP 5683 del equipo, el contenedor no arranca.
 
 ## Script de prueba (`smoke.py`)
 
@@ -147,6 +150,8 @@ python servers/coap/smoke.py                          # contra localhost:5683
 python servers/coap/smoke.py --host 192.168.1.50      # contra otra máquina
 python servers/coap/smoke.py --repeat 100             # 100 alertas seguidas
 ```
+
+Los logs del servidor usan el formato estándar del proyecto (ver «Logging» en el README principal).
 
 Termina con código 0 si todas las pruebas pasan y 1 si alguna falla. Cada ejecución guarda alertas reales en la base de datos (las válidas), así que conviene vaciar la tabla antes de un experimento formal.
 

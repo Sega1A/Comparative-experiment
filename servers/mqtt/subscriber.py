@@ -1,75 +1,86 @@
-import json
-import os
+import logging
 import sys
-import time
+
 import paho.mqtt.client as mqtt
-from dotenv import load_dotenv
 
-load_dotenv()
+from common.db import AlertaMQTT, store_alert
+from common.db.init_db import init_db
+from common.log import setup_logging
+from common.schemas import AlertDTO, InvalidAlertError, get_settings, parse_alert
 
-BROKER_HOST = os.getenv("MQTT_BROKER_HOST", "mosquitto")
-BROKER_PORT = int(os.getenv("MQTT_BROKER_PORT", 1883))
-TOPIC = "alertas/caidas"
+logger = logging.getLogger("servers.mqtt.subscriber")
+
+# QoS máximo: el broker entrega cada mensaje con el menor entre el QoS con que se
+# publicó y este, así la columna `qos` refleja lo que realmente usó el dispositivo.
+SUBSCRIPTION_QOS = 2
 
 
-def on_connect(client, userdata, flags, rc, properties=None):
-    if rc == 0:
-        print(f"[MQTT] Conectado exitosamente al Broker en {BROKER_HOST}:{BROKER_PORT}", flush=True)
-        client.subscribe(TOPIC, qos=1)
-        print(f"[MQTT] Suscrito al tema: '{TOPIC}' (Escuchando en QoS 0 y QoS 1)", flush=True)
-    else:
-        print(f"[MQTT] Error de conexión con el Broker. Código: {rc}", flush=True)
+def save_alert(alert: AlertDTO, msg: mqtt.MQTTMessage) -> None:
+    store_alert(AlertaMQTT, alert, len(msg.payload), topic=msg.topic, qos=msg.qos)
+
+
+def handle_message(msg: mqtt.MQTTMessage, save=save_alert) -> bool:
+    """Valida y guarda un mensaje. Devuelve True si quedó guardado."""
+    try:
+        alert = parse_alert(msg.payload)
+        save(alert, msg)
+    except InvalidAlertError as error:
+        logger.warning("Rejected alert on '%s': %s", msg.topic, error)
+        return False
+    except Exception:
+        logger.exception("Unexpected error while processing alert")
+        return False
+
+    logger.info(
+        "Alert received: %s (topic=%s, qos=%s)",
+        alert.to_payload(),
+        msg.topic,
+        msg.qos,
+    )
+    return True
+
+
+def on_connect(client, userdata, flags, reason_code, properties=None):
+    if reason_code.is_failure:
+        logger.error("Could not connect to broker: %s", reason_code)
+        return
+    logger.info("Connected to broker")
+    client.subscribe(userdata.mqtt_topic, qos=SUBSCRIPTION_QOS)
+    logger.info("Subscribed to '%s' (qos=%s)", userdata.mqtt_topic, SUBSCRIPTION_QOS)
 
 
 def on_message(client, userdata, msg):
-    recepcion_ts = time.time()
-    payload_raw = msg.payload.decode("utf-8", errors="replace")
-
-    print("\n" + "=" * 55, flush=True)
-    print(f"[NUEVA ALERTA RECIBIDA]", flush=True)
-    print(f"  ▸ Tema (Topic)   : {msg.topic}", flush=True)
-    print(f"  ▸ QoS del Mensaje: {msg.qos}", flush=True)
-
-    try:
-        data = json.loads(payload_raw)
-        emision_ts = data.get("timestamp")
-        device_id = data.get("device_id", "Desconocido")
-
-        if emision_ts is not None:
-            latencia_ms = (recepcion_ts - float(emision_ts)) * 1000.0
-            print(f"  ▸ Dispositivo ID : {device_id}", flush=True)
-            print(f"  ▸ Latencia Medida: {latencia_ms:.2f} ms", flush=True)
-        else:
-            print("  ⚠️  Advertencia: El payload no incluye la clave 'timestamp'.", flush=True)
-
-        print(f"  ▸ Payload JSON   : {data}", flush=True)
-
-    except (json.JSONDecodeError, ValueError) as err:
-        print(f"  ❌ Error al decodificar JSON: {err}", flush=True)
+    handle_message(msg)
 
 
-def main():
+def main() -> None:
+    settings = get_settings()
+    init_db()
+
     client = mqtt.Client(
         callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
-        client_id="mqtt_subscriber_service"
+        client_id="mqtt_subscriber_service",
+        userdata=settings,
     )
-
     client.on_connect = on_connect
     client.on_message = on_message
 
-    print(f"[MQTT] Conectando a {BROKER_HOST}:{BROKER_PORT}...", flush=True)
-
+    logger.info(
+        "Connecting to %s:%s...", settings.mqtt_broker_host, settings.mqtt_broker_port
+    )
     try:
-        client.connect(BROKER_HOST, BROKER_PORT, keepalive=60)
-        client.loop_forever()
+        client.connect_async(
+            settings.mqtt_broker_host, settings.mqtt_broker_port, keepalive=60
+        )
+        client.loop_forever(retry_first_connection=True)
     except KeyboardInterrupt:
-        print("\n[MQTT] Servicio detenido.", flush=True)
+        logger.info("Service stopped")
         client.disconnect()
-        sys.exit(0)
-    except Exception as e:
-        print(f"[MQTT] Error crítico: {e}", flush=True)
+    except Exception:
+        logger.exception("Critical error")
         sys.exit(1)
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()

@@ -23,3 +23,8 @@ firmware/.pio/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Herramientas
+.ruff_cache/
+*.egg-info/
+build/

@@ -6,18 +6,32 @@ Uso, desde la raíz del repositorio:
 """
 
 import argparse
+import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import inspect, select
+from sqlalchemy import inspect, select, text
 
 from common.db.database import get_engine, get_session
 from common.db.models import AlertaCoAP, AlertaHTTP, AlertaMQTT, Base
+from common.log import setup_logging
+
+logger = logging.getLogger("common.db.init_db")
+
+# Clave del bloqueo de PostgreSQL que evita que dos servidores creen tablas a la vez.
+INIT_LOCK_ID = 7_315_001
 
 
 def init_db() -> list:
-    """Crea las tablas que falten y devuelve la lista de tablas del proyecto."""
+    """Crea las tablas que falten y devuelve la lista de tablas del proyecto.
+
+    Es seguro llamarla desde varios procesos a la vez (arranque de los servidores).
+    """
     engine = get_engine()
-    Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        connection.execute(
+            text("SELECT pg_advisory_xact_lock(:id)"), {"id": INIT_LOCK_ID}
+        )
+        Base.metadata.create_all(connection)
     existentes = set(inspect(engine).get_table_names())
     return [t for t in Base.metadata.tables if t in existentes]
 
@@ -40,7 +54,7 @@ def prueba_insertar_y_leer() -> None:
             tamano_bytes=64,
             enviado_en=ahora,
             perfil_red="ideal",
-            topic="alertas/caidas",
+            topic="alert",
             qos=1,
         ),
         AlertaCoAP(
@@ -58,9 +72,12 @@ def prueba_insertar_y_leer() -> None:
         for fila in filas:
             modelo = type(fila)
             leida = sesion.scalars(select(modelo).where(modelo.id == fila.id)).one()
-            print(
-                f"  OK {modelo.__tablename__}: id={leida.id} "
-                f"recibido_en={leida.recibido_en.isoformat()} payload={leida.payload}"
+            logger.info(
+                "OK %s: id=%s recibido_en=%s payload=%s",
+                modelo.__tablename__,
+                leida.id,
+                leida.recibido_en.isoformat(),
+                leida.payload,
             )
         for fila in filas:
             sesion.delete(fila)
@@ -76,11 +93,12 @@ def main() -> None:
     args = parser.parse_args()
 
     tablas = init_db()
-    print(f"Tablas listas ({len(tablas)}): {', '.join(tablas)}")
+    logger.info("Tablas listas (%s): %s", len(tablas), ", ".join(tablas))
     if args.prueba:
-        print("Prueba de inserción y lectura:")
+        logger.info("Prueba de inserción y lectura:")
         prueba_insertar_y_leer()
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()
