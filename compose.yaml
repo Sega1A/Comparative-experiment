@@ -53,6 +53,7 @@ services:
       - "1883:1883"
     volumes:
       - ./servers/mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - datos_mosquitto:/mosquitto/data
 
   mqtt-subscriber:
     build:
@@ -71,3 +72,4 @@ services:
 
 volumes:
   datos_postgres:
+  datos_mosquitto:

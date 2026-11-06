@@ -57,9 +57,15 @@ def main() -> None:
     settings = get_settings()
     init_db()
 
+    # Sesión persistente (clean_session=False con client_id fijo): mientras el
+    # suscriptor está desconectado, el broker le guarda los mensajes QoS 1 y 2 y
+    # se los entrega al reconectarse. Junto con `persistence true` en
+    # mosquitto.conf, esto evita perder alertas que llegan durante un reinicio
+    # del broker o del suscriptor (el dispositivo ya recibió su PUBACK).
     client = mqtt.Client(
         callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
         client_id="mqtt_subscriber_service",
+        clean_session=False,
         userdata=settings,
     )
     client.on_connect = on_connect
