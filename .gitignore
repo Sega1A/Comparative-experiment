@@ -28,3 +28,7 @@ Thumbs.db
 .ruff_cache/
 *.egg-info/
 build/
+
+# Firmware: credenciales locales
+firmware/include/config.h
+firmware/logs/
