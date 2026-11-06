@@ -50,7 +50,10 @@ constexpr uint8_t FAILOVER_AFTER = 2;
 constexpr int MQTT_QOS = 1;                      // al menos una vez (espera PUBACK)
 constexpr bool MQTT_PERSISTENT = false;          // false: conecta y desconecta en cada intento
 
-// CoAP (RFC 7252, sección 4.8)
+// CoAP (RFC 7252, sección 4.8). Ojo: el intento completo está limitado a
+// ATTEMPT_TIMEOUT_MS (10 s), así que dentro de un intento caben 2
+// retransmisiones (a los 2-3 s y a los 6-9 s). Las 4 de la RFC solo se
+// alcanzan si se sube ATTEMPT_TIMEOUT_MS a ~93 s (MAX_TRANSMIT_WAIT).
 constexpr uint32_t COAP_ACK_TIMEOUT_MS = 2000;
 constexpr float COAP_ACK_RANDOM_FACTOR = 1.5f;
 constexpr uint8_t COAP_MAX_RETRANSMIT = 4;
@@ -66,5 +69,6 @@ constexpr uint16_t TEST_BURST_COUNT = 30;
 constexpr uint32_t TEST_BURST_GAP_MS = 2000;
 
 // ---------------------------------------------------------------- Alarma local
-constexpr uint32_t ALARM_MAX_MS = 30000;
+// El buzzer suena este tiempo después de una caída (o hasta presionar BOOT).
+constexpr uint32_t ALARM_MAX_MS = 10000;
 constexpr uint32_t LONG_PRESS_MS = 2000;

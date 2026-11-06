@@ -47,13 +47,13 @@ Por terminal: `pio run -e coap -t upload && pio device monitor`.
    |---|---|---|
    | HTTP | `200` con cuerpo `true` | Retransmisiones de TCP |
    | MQTT | `PUBACK` del broker (QoS 1) | TCP + QoS 1 |
-   | CoAP | `2.04` | Mensaje CON con retransmisión exponencial (RFC 7252): 2–3 s, luego el doble, hasta 4 veces |
+   | CoAP | `2.04` | Mensaje CON con retransmisión exponencial (RFC 7252): a los 2–3 s y a los 6–9 s. Con el límite de 10 s caben 2 retransmisiones; las 4 de la RFC necesitarían ~93 s |
 
 3. **Entre intentos**, espera 1, 2, 4, 8… s (±20 % al azar, tope de 30 s). Reenvía con el **mismo `sequence`**, así el par `(device_id, sequence)` identifica duplicados.
 4. **Sin WiFi**, el intento espera la reconexión dentro del mismo límite y cuenta como fallido (`sin_wifi`).
 5. **No reintenta si el servidor rechaza el mensaje** (`400` en HTTP, `4.xx` en CoAP): repetir no lo arreglaría.
 6. **En modo experimento**, tras `MAX_ATTEMPTS` (5) la alerta se da por **perdida**: así se mide la tasa de entrega. **En modo operativo** nunca se rinde.
-7. **Aviso local:** el buzzer suena 30 s (o hasta presionar BOOT) y el LED parpadea rápido mientras haya alertas sin confirmar.
+7. **Aviso local:** el buzzer suena 10 s (o hasta presionar BOOT) y el LED parpadea rápido mientras haya alertas sin confirmar.
 
 Todos los valores están en `include/settings.h` y deben declararse en el informe.
 
